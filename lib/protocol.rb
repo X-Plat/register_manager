@@ -32,11 +32,17 @@ module Register
       end
     end     
 
+    def instance_prod_ports
+      return unless instance && instance.class == Hash
+      metadata = instance.fetch('instance_meta')
+      metadata.fetch('prod_ports') if metadata && metadata.class == Hash 
+    end
+
     #Generate register message for instance.
     def register_protocol
        return unless instance
        app_group, app_version = parse_app_version(instance['app_name'])
-       prod_ports = parse_bns_ports(instance['instance_meta']['prod_ports'])
+       prod_ports = parse_bns_ports(instance_prod_ports)
        instance_http_port = prod_ports.size < 1? instance[:instance_host_port]\
                                  : prod_ports.values_at(prod_ports.keys[0])[0]
        app_uri = instance['app_uri']? convert_array_to_str(instance['app_uri'])\
@@ -79,10 +85,12 @@ module Register
     #@Param [Hash] ports: ports dispatched for the instance
     #@Return [Array] ports to register
     def parse_bns_ports(ports)
-      return {} unless ports
+      return {} unless ports and ports.class == Hash
       port_to_register = {}
       ports.each_pair do |port_name, port_des| 
-         port_to_register["#{port_name}"] = port_des["host_port"] if port_des["port_info"]["bns"]
+        next unless port_des.class == Hash
+        port_info = port_des["port_info"]
+        port_to_register["#{port_name}"] = port_des["host_port"] if port_info && port_info["bns"]
       end
       port_to_register
     end
