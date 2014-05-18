@@ -1,12 +1,70 @@
+require "membrane"
+
 module Register
   class Protocol
 
     attr_reader :instance
-    def initialize(instance)
-      @instance = instance
+
+    def initialize(instance, opts={})
+      @instance = instance.dup
+      @instance.merge!(opts)
     end
 
     class << self
+
+      def schema
+        meta_schema = self.meta_schema  
+        Membrane::SchemaParser.parse do
+          {
+            'app_uri'                 => enum([String], nil),        
+            'app_id'                  => String,
+            'app_name'                => String,
+            'instance_ip'             => String,
+            'instance_id'             => String,
+            'instance_index'          => String,
+            'instance_meta'           => meta_schema,
+            optional('instance_user') => String,
+            optional('instance_path') => String,
+          }
+        end
+      end
+
+      def meta_schema
+        port_info_schema = self.port_info_schema  
+        prod_ports_schema = self.prod_ports_schema
+        Membrane::SchemaParser.parse do
+          {
+            'raw_ports'             => dict(String, port_info_schema ),
+            'prod_ports'            => dict(String, prod_ports_schema),
+          }    
+        end    
+      end    
+
+      def prod_ports_schema
+        port_info_schema = self.port_info_schema  
+        Membrane::SchemaParser.parse do
+          {
+            'http_port'              => Fixnum,
+            'container_port'         => Fixnum,
+            'port_info'              => port_info_schema,
+          }    
+        end    
+      end
+
+      def port_info_schema
+        Membrane::SchemaParser.parse do
+          {
+            'port'                  => Fixnum,
+            'bns'                   => bool,
+            'http'                  => bool,
+          }    
+        end    
+      end
+
+      def validate(instance)
+        self.schema.validate(instance)
+      end
+
       def register_api
         "/addRMIports"
       end
@@ -32,109 +90,77 @@ module Register
       end
     end     
 
-    def instance_prod_ports
-      return unless instance && instance.class == Hash
-      metadata = instance.fetch('instance_meta')
-      metadata.fetch('prod_ports') if metadata && metadata.class == Hash 
+    def app_detail
+      return {} unless instance && instance.class == Hash
+
+      message = {}
+      [:org_name, :space_name].each do |key|
+          message[key] = instance['instance_tags'][key.to_s]
+      end 
+
+      [:app_name, :cluster].each do |key|
+          message[key] = instance[key.to_s]
+      end
+      message
     end
 
-    #Generate register message for instance.
+    def instance_detail
+      return {} unless instance && instance.class == Hash
+      message = {}
+
+      [:app_id,
+       :instance_index,
+       :instance_id,
+       :instance_ip,
+      ].each { |key| message[key] = instance[key.to_s] }
+
+      message.merge(app_detail)
+    end
+
     def register_protocol
-       return unless instance
-       app_group, app_version = parse_app_version(instance['app_name'])
-       prod_ports = parse_bns_ports(instance_prod_ports)
-       instance_http_port = prod_ports.size < 1? instance[:instance_host_port]\
-                                 : prod_ports.values_at(prod_ports.keys[0])[0]
-       app_uri = instance['app_uri']? convert_array_to_str(instance['app_uri'])\
-                                       : instance['instance_tags']['bns_node']
-       instance_cluster = instance['cluster'] || DEFAULT_APP_CLUSTER
-       message = {
-          :app_uri => app_uri,
-          :app_id => instance['app_id'],
-          :app_name => instance['app_name'],
-          :app_group => app_group,
-          :app_version => app_version,
-          :instance_user => instance[:instance_user] || DEFAULT_APP_USER,
-          :instance_index => instance['instance_index'],
-          :instance_id => instance['instance_id'],
-          :instance_ip => instance['instance_ip'],
-          :instance_http_port => instance_http_port,
-          :instance_rmi_ports => convert_hash_to_str(prod_ports),
-          :instance_path => instance['instance_path'] || DEFAULT_APP_PATH,
-          :instance_cluster=> instance_cluster,
-        }
-       message
-    end
+      return {} unless instance && instance.class == Hash
 
-    #Parse the application name to application group and application version
-    #@Param [String] app_name: application name;
-    #@return [Array] app_group, app_version;
-    def parse_app_version(app_name)
+      rmi_ports = parse_prod_ports('bns')
+      return {} unless rmi_ports.size > 1 
 
-        app_info = /(^[a-z\d][a-z\d\-]*)_(([\d]\z)|([\d][a-z\d\-]*[a-z\d]\z))/i.match(app_name)
+      message = {}
+      http_ports = parse_prod_ports('http')
+      message[:instance_http_port] = http_ports.size < 1 ? 
+          http_ports[0][:port]: rmi_ports[0][:port]
+      message[:instance_rmi_ports] = rmi_ports
+      message[:instance_path] = instance['instance_path'] || DEFAULT_APP_PATH
 
-        if app_info
-          app_group, app_version = app_info[1], app_info[2]
-        else
-          app_group, app_version = app_name, '0-0-0-0'
-        end
-        [app_group, app_version]
+      message.merge(instance_detail)
     end
 
     #Parse the ports to be registered
     #@Param [Hash] ports: ports dispatched for the instance
     #@Return [Array] ports to register
-    def parse_bns_ports(ports)
+    def parse_prod_ports(type)
+      meta = instance.fetch('instance_meta', {})
+      ports = meta.fetch('prod_ports', {}) if meta && meta.class == Hash
       return {} unless ports and ports.class == Hash
-      port_to_register = {}
-      ports.each_pair do |port_name, port_des| 
-        next unless port_des.class == Hash
-        port_info = port_des["port_info"]
-        port_to_register["#{port_name}"] = port_des["host_port"] if port_info && port_info["bns"]
+
+      prod_ports = []
+      ports.each_pair do |name, desc| 
+        next unless desc.class == Hash
+        info = desc['port_info']
+        prod_ports << {
+            :name => name, 
+            :port => desc['host_port']
+        } if info && info[type]
       end
-      port_to_register
+      prod_ports
     end
 
     #Unregister instance protocol
     def unregister_protocol
-      app_uri = instance['app_uri']? convert_array_to_str(instance['app_uri'])\
-                                       : instance['instance_tags']['bns_node']   
-      instance_cluster = instance['cluster'] || DEFAULT_APP_CLUSTER
-      message = {
-	:app_id => instance['app_id'],
-        :app_uri => app_uri,
-	:instance_index => instance['instance_index'],
-        :instance_cluster=> instance_cluster,
-      }
-      message
+      instance_detail   
     end
-
-    #Convert hash to string, just to satisfy the bridge interface.
-    def convert_hash_to_str(json)
-       return '{}' unless json && json.class == Hash
-       port_arr = []
-       json.each_pair { |port_name, port|
-	 port_arr << "\"#{port_name}\":#{port}"
-       }
-       port_str = port_arr.join(',')
-       '{' + port_str +'}'
-    end
-
-    #Convert array to string, just to satisfy the bridge interface.
-    def convert_array_to_str(arr)
-       return '' unless arr && arr.class == Array
-       arr.join(',')
-    end   
 
     #Create bns protocal for instance
     def create_protocol
-        app_uri = instance['app_uri']? convert_array_to_str(instance['app_uri'])\
-                                       : instance['instance_tags']['bns_node']
-        instance_cluster = instance['cluster'] || DEFAULT_APP_CLUSTER
-        message = { 
-           :app_uri => app_uri+'.jpaas.'+instance_cluster
-         }
-        message
-     end
+      app_detail
+    end
   end
 end

@@ -1,24 +1,23 @@
 # coding: UTF-8
 require "nats/client"
 require "bridge_client"
-require 'vcap/logging'
-require 'const'
+require "vcap/logging"
+require "const"
+require "config"
 
 module Register
   class Broker
-    attr_reader :logger, :bridge_client
+    attr_reader :config
+    attr_reader :logger
+    attr_reader :bridge_client
+
 
     def initialize(config)
-      @config = config.dup
-      VCAP::Logging.setup_from_config(@config['logging'])
-      @logger = VCAP::Logging.logger('broker') 
-      @nats_uri = @config['mbus']
-      @instance_cluster = @config['cluster']
-      ['TERM', 'INT', 'QUIT'].each { |s| 
-        trap(s) { 
-          shutdown() 
-        } 
-      }
+      @config = Config.new(config)
+
+      ['TERM', 'INT', 'QUIT'].each do |s| 
+        trap(s) { shutdown() } 
+      end
     end
 
     def shutdown
@@ -26,32 +25,42 @@ module Register
       exit!
     end
 
+    def validate_config
+      config.validate
+    end
+
     def setup
+      validate_config
+      setup_logger
       setup_nats
       setup_bridge_client(@config, logger)
     end
 
+    def setup_logger
+      VCAP::Logging.setup_from_config(config['logging'])
+      @logger = VCAP::Logging.logger('broker')
+    end
+
     def setup_nats
+      nats_uri = config['mbus']
+
       NATS.on_error do |e|
         logger.error("EXITING! NATS error: #{e}")
-        logger.error(e)
-	exit!
+	    exit!
       end
 
       EM.error_handler do |e|
-	logger.error "Eventmachine problem, #{e}"
-        logger.error(e)
+	    logger.error "Eventmachine problem, #{e}"
       end 
  
-      NATS.start(:uri => @nats_uri) do
-	NATS.subscribe('broker.register', :queue => :bk) { |msg| 
+      NATS.start(:uri => nats_uri) do
+	    NATS.subscribe('broker.register', :queue => :bk) { |msg| 
           instance = Yajl::Parser.parse(msg)
-          instance['cluster']=@instance_cluster
           bridge_client.request( instance, { :action => ACTION_REGISTER} )
         }
+
         NATS.subscribe('broker.unregister',:queue => :bk) { |msg| 
           instance = Yajl::Parser.parse(msg)
-          instance['cluster']=@instance_cluster
           bridge_client.request( instance, { :action => ACTION_UNREGISTER} )
         }
       end
