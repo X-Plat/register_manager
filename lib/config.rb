@@ -5,11 +5,13 @@ module Register
       EMPTY_CONFIG = {}
 
       def self.schema
+          logging_schema = self.logging_schema
+          rpc_schema = self.rpc_schema
           Membrane::SchemaParser.parse do
             {
               "mbus"            => String,
-              "logging"         => self.logging_schema,
-              "rpc"             => self.rpc_schema,
+              "logging"         => logging_schema,
+              "rpc"             => rpc_schema,
               "cluster"         => String,
             }
           end
@@ -42,7 +44,11 @@ module Register
       end
 
       def validate
-        self.schema.validate(@config)
+        self.class.schema.validate(@config)
+      end
+     
+      def [](key)
+        @config[key]
       end
   end
 end

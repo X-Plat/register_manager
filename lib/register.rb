@@ -11,10 +11,8 @@ module Register
     attr_reader :logger
     attr_reader :bridge_client
 
-
     def initialize(config)
       @config = Config.new(config)
-
       ['TERM', 'INT', 'QUIT'].each do |s| 
         trap(s) { shutdown() } 
       end
@@ -49,18 +47,20 @@ module Register
 	    exit!
       end
 
-      EM.error_handler do |e|
-	    logger.error "Eventmachine problem, #{e}"
-      end 
- 
+      #EM.error_handler do |e|
+	  #  logger.error "Eventmachine problem, #{e}"
+      #end 
+
       NATS.start(:uri => nats_uri) do
 	    NATS.subscribe('broker.register', :queue => :bk) { |msg| 
           instance = Yajl::Parser.parse(msg)
+          logger.debug("received message #{instance}")
           bridge_client.request( instance, { :action => ACTION_REGISTER} )
         }
 
         NATS.subscribe('broker.unregister',:queue => :bk) { |msg| 
           instance = Yajl::Parser.parse(msg)
+          logger.debug("received unregister message #{instance}")
           bridge_client.request( instance, { :action => ACTION_UNREGISTER} )
         }
       end

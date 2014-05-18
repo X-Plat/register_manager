@@ -16,7 +16,7 @@ module Register
       @cluster = config['cluster']
       @logger = logger
       @waiting_bridge_queue = []
-      @max_request_retry = config['rpc'][max_request_retry] ||
+      @max_request_retry = config['rpc']['max_request_retry'] ||
           DEFAULT_MAX_REQUEST_RETRY
       @register_retry_delay = config['rpc']['register_retry_delay'] || 
           DEFAULT_BRIDGE_RETRY_DELAY
@@ -58,7 +58,7 @@ module Register
    #+ @param [Hash] options: request options.
    #+ @return [Object] payload according to the bridge protocol.
    def request_payload(instance, options)
-     Protocol.new(instance, :cluser => @cluster).send("#{options[:action]}_protocol")
+     Protocol.new(instance, 'cluster' => @cluster).send("#{options[:action]}_protocol")
    end
 
     #sending request to bridge.
@@ -87,7 +87,7 @@ module Register
       if @waiting_bridge_queue.include?(bid)
          logger.debug("[RPC] instance #{bid} in queue, delay to process.")
 
-         EM.add_timer(queue_process_delay){
+         EM.add_timer(@queue_process_delay){
            request(instance, options, &callback)
          }
       else
@@ -103,7 +103,9 @@ module Register
     #+ @param [Block] &callback: request callback function.
     def request_with_retry(instance, request_api, method, payload, options, 
                            retries = 0, &callback)
+
       bid = bridge_instance_id(payload)
+
       @logger.debug("[#{bid}] Starting #{retries} #{options[:action]} \
                    request #{payload}")
 
@@ -131,7 +133,7 @@ module Register
              options[:action] = ACTION_CREATE
              request(instance, options, &callback)
 
-             EM.add_timer(queue_process_delay) do
+             EM.add_timer(@queue_process_delay) do
                request(instance, options_pre, &callback)
              end
 	      elsif retries < @max_request_retry

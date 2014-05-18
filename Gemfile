@@ -1,5 +1,5 @@
 source "http://ruby.taobao.org"
-
+gem 'membrane'
 gem 'eventmachine'
 gem 'nats', :require => 'nats/client'
 gem 'vcap_logging', :require => ['vcap/logging'], :git => 'https://github.com/cloudfoundry/common.git', :ref => 'e36886a1'

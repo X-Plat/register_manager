@@ -3,7 +3,7 @@ require "membrane"
 module Register
   class Protocol
 
-    attr_reader :instance
+    attr_accessor :instance
 
     def initialize(instance, opts={})
       @instance = instance.dup
@@ -34,7 +34,7 @@ module Register
         prod_ports_schema = self.prod_ports_schema
         Membrane::SchemaParser.parse do
           {
-            'raw_ports'             => dict(String, port_info_schema ),
+            'raw_ports'             => dict(String, port_info_schema),
             'prod_ports'            => dict(String, prod_ports_schema),
           }    
         end    
@@ -44,7 +44,7 @@ module Register
         port_info_schema = self.port_info_schema  
         Membrane::SchemaParser.parse do
           {
-            'http_port'              => Fixnum,
+            'host_port'              => Fixnum,
             'container_port'         => Fixnum,
             'port_info'              => port_info_schema,
           }    
@@ -92,14 +92,13 @@ module Register
 
     def app_detail
       return {} unless instance && instance.class == Hash
-
       message = {}
-      [:org_name, :space_name].each do |key|
-          message[key] = instance['instance_tags'][key.to_s]
+      ['org_name', 'space_name'].each do |key|
+          message[key] = instance['instance_tags'][key]
       end 
 
-      [:app_name, :cluster].each do |key|
-          message[key] = instance[key.to_s]
+      ['app_name', 'cluster'].each do |key|
+          message[key] = instance[key]
       end
       message
     end
@@ -108,10 +107,10 @@ module Register
       return {} unless instance && instance.class == Hash
       message = {}
 
-      [:app_id,
-       :instance_index,
-       :instance_id,
-       :instance_ip,
+      ['app_id',
+       'instance_index',
+       'instance_id',
+       'instance_ip',
       ].each { |key| message[key] = instance[key.to_s] }
 
       message.merge(app_detail)
@@ -125,10 +124,10 @@ module Register
 
       message = {}
       http_ports = parse_prod_ports('http')
-      message[:instance_http_port] = http_ports.size < 1 ? 
-          http_ports[0][:port]: rmi_ports[0][:port]
-      message[:instance_rmi_ports] = rmi_ports
-      message[:instance_path] = instance['instance_path'] || DEFAULT_APP_PATH
+      message['instance_http_port'] = http_ports.size < 1 ? 
+          http_ports[0]['port']: rmi_ports[0]['port']
+      message['instance_rmi_ports'] = rmi_ports
+      message['instance_path'] = instance['instance_path'] || DEFAULT_APP_PATH
 
       message.merge(instance_detail)
     end
@@ -146,8 +145,8 @@ module Register
         next unless desc.class == Hash
         info = desc['port_info']
         prod_ports << {
-            :name => name, 
-            :port => desc['host_port']
+            'name' => name, 
+            'port' => desc['host_port']
         } if info && info[type]
       end
       prod_ports
