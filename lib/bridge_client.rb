@@ -3,6 +3,7 @@ require 'const'
 require 'protocol'
 require 'em-http'
 require 'err'
+require 'json'
 
 module Register
   class BridgeClient
@@ -58,7 +59,7 @@ module Register
    #+ @param [Hash] options: request options.
    #+ @return [Object] payload according to the bridge protocol.
    def request_payload(instance, options)
-     Protocol.new(instance, 'cluster' => @cluster).send("#{options[:action]}_protocol")
+     Protocol.new(instance, 'cluster' => @cluster).send("#{options[:action]}_protocol").to_json
    end
 
     #sending request to bridge.

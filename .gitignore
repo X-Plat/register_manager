@@ -3,6 +3,8 @@
 *.debug
 .bundle
 .config
+log
+*.log
 coverage
 InstalledFiles
 lib/bundler/man
