@@ -1,3 +1,3 @@
 module Register
-    BNS_NOEXITS = "not exists, please creat it first".freeze
+    BNS_NOEXITS = "not exists, please create it first".freeze
 end

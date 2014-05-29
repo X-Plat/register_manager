@@ -107,11 +107,12 @@ module Register
       return {} unless instance && instance.class == Hash
       message = {}
 
-      ['app_id',
-       'instance_index',
-       'instance_id',
-       'instance_ip',
+      ['instance_id',
+       'instance_ip'
       ].each { |key| message[key] = instance[key.to_s] }
+
+      [ 'instance_index',
+        'app_id' ].each { |key| message[key] = instance[key.to_s].to_i }
 
       message.merge(app_detail)
     end
@@ -120,7 +121,7 @@ module Register
       return {} unless instance && instance.class == Hash
 
       rmi_ports = parse_prod_ports('bns')
-      return {} unless rmi_ports.size > 1 
+      return {} unless rmi_ports.size > 0 
 
       message = {}
       http_ports = parse_prod_ports('http')
@@ -128,7 +129,6 @@ module Register
           http_ports[0]['port']: rmi_ports[0]['port']
       message['instance_rmi_ports'] = rmi_ports
       message['instance_path'] = instance['instance_path'] || DEFAULT_APP_PATH
-
       message.merge(instance_detail)
     end
 
