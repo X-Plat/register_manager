@@ -125,7 +125,7 @@ module Register
 
       message = {}
       http_ports = parse_prod_ports('http')
-      message['instance_http_port'] = http_ports.size > 1 ? 
+      message['instance_http_port'] = http_ports.size > 0 ? 
           http_ports[0]['port']: rmi_ports[0]['port']
       message['instance_rmi_ports'] = rmi_ports
       message['instance_path'] = instance['instance_path'] || DEFAULT_APP_PATH
