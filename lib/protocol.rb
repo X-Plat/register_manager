@@ -23,6 +23,7 @@ module Register
             'instance_id'             => String,
             'instance_index'          => String,
             'instance_meta'           => meta_schema,
+            'instance_tags'           => tags_schema,
             optional('instance_user') => String,
             optional('instance_path') => String,
           }
@@ -39,6 +40,17 @@ module Register
           }    
         end    
       end    
+
+      def tags_schema
+        Membrane::SchemaParser.parse do
+          {
+            'org_name'               => String,
+            'space_name'             => String,
+            optional('space')        => String,
+            optional('bns_node')     => String,
+          }
+        end
+      end
 
       def prod_ports_schema
         port_info_schema = self.port_info_schema  
