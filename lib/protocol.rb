@@ -14,6 +14,7 @@ module Register
 
       def schema
         meta_schema = self.meta_schema  
+        tags_schema = self.tags_schema  
         Membrane::SchemaParser.parse do
           {
             'app_uri'                 => enum([String], nil),        
